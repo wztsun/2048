@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#faf8ef">
+<title>2048 · 数字合并</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23bbada0'/%3E%3Ctext x='32' y='44' font-family='Helvetica,Arial' font-size='28' font-weight='bold' fill='%23faf8ef' text-anchor='middle'%3E2048%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf8ef;
+    --ink:#776e65;
+    --muted:#9b8f86;
+    --board:#bbada0;
+    --cell-bg:rgba(238,228,218,.35);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{min-height:100%}
+  body{
+    margin:0;
+    padding:24px 16px 32px;
+    display:flex;justify-content:center;align-items:center;
+    min-height:100svh;
+    background:
+      radial-gradient(900px 500px at 50% -12%, #ffffff 0%, var(--bg) 58%, #f2ede1 100%);
+    color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{width:min(100%,480px)}
+
+  /* ---------- header ---------- */
+  .top{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:14px}
+  h1{
+    margin:0;font-size:clamp(42px,11vw,64px);line-height:.88;letter-spacing:-2.5px;font-weight:800;
+    background:linear-gradient(135deg,#f2b179 0%,#f67c5f 45%,#edc22f 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{margin:8px 0 0;font-size:13px;color:var(--muted);letter-spacing:.2px}
+  .scores{display:flex;gap:8px;flex:0 0 auto}
+  .score-box{
+    background:var(--board);color:#fff;border-radius:10px;
+    padding:7px 12px;min-width:82px;text-align:center;
+    box-shadow:0 3px 0 rgba(90,80,72,.18);
+  }
+  .label{display:block;font-size:10px;letter-spacing:1.6px;color:#efe7dd;opacity:.9;margin-bottom:1px}
+  .num{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;display:inline-block}
+  .num.bump{animation:bump .22s ease}
+  @keyframes bump{0%{transform:scale(1)}45%{transform:scale(1.28);color:#ffe9a8}100%{transform:scale(1)}}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{display:flex;gap:10px;margin-bottom:12px}
+  button{
+    font:inherit;font-weight:700;font-size:14px;cursor:pointer;border:0;
+    border-radius:10px;padding:10px 16px;
+    background:#8f7a66;color:#f9f6f2;
+    box-shadow:0 3px 0 #7a6753;
+    transition:transform .08s ease,filter .15s ease;
+  }
+  button:hover{filter:brightness(1.07)}
+  button:active{transform:translateY(2px);box-shadow:0 1px 0 #7a6753}
+  button.ghost{background:#dcd0c4;color:#6f655c;box-shadow:0 3px 0 #c6b8aa}
+  button.ghost:active{box-shadow:0 1px 0 #c6b8aa}
+  button:disabled{opacity:.45;cursor:default;transform:none;box-shadow:0 3px 0 #7a6753}
+
+  /* ---------- board ---------- */
+  .board{
+    position:relative;width:100%;aspect-ratio:1;
+    background:var(--board);border-radius:14px;overflow:hidden;
+    box-shadow:0 14px 34px rgba(119,110,101,.20),inset 0 1px 0 rgba(255,255,255,.22);
+    touch-action:none;user-select:none;
+  }
+  .grid-bg{
+    position:absolute;inset:var(--gap,12px);
+    display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);
+    gap:var(--gap,12px);
+  }
+  .cell{background:var(--cell-bg);border-radius:10px}
+  .tiles{position:absolute;inset:0}
+
+  .tile{
+    position:absolute;left:0;top:0;
+    width:var(--cell,80px);height:var(--cell,80px);
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .11s ease-in-out;
+    will-change:transform;
+  }
+  .tile .inner{
+    width:100%;height:100%;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-variant-numeric:tabular-nums;
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.07);
+  }
+  .tile-new .inner{animation:appear .17s ease-out}
+  .tile-merged .inner{animation:pop .19s cubic-bezier(.3,1.6,.6,1)}
+  @keyframes appear{from{transform:scale(.15);opacity:.1}to{transform:scale(1);opacity:1}}
+  @keyframes pop{0%{transform:scale(.6)}62%{transform:scale(1.13)}100%{transform:scale(1)}}
+
+  .v2    .inner{background:#eee4da;color:#776e65}
+  .v4    .inner{background:#ede0c8;color:#776e65}
+  .v8    .inner{background:#f2b179;color:#f9f6f2}
+  .v16   .inner{background:#f59563;color:#f9f6f2}
+  .v32   .inner{background:#f67c5f;color:#f9f6f2}
+  .v64   .inner{background:#f65e3b;color:#f9f6f2}
+  .v128  .inner{background:#edcf72;color:#f9f6f2;box-shadow:0 0 14px rgba(237,207,114,.55)}
+  .v256  .inner{background:#edcc61;color:#f9f6f2;box-shadow:0 0 16px rgba(237,204,97,.6)}
+  .v512  .inner{background:#edc850;color:#f9f6f2;box-shadow:0 0 18px rgba(237,200,80,.65)}
+  .v1024 .inner{background:#edc53f;color:#f9f6f2;box-shadow:0 0 20px rgba(237,197,63,.7)}
+  .v2048 .inner{
+    background:linear-gradient(135deg,#edc22f,#f2b179);color:#fff;
+    box-shadow:0 0 26px rgba(237,194,47,.85),inset 0 -3px 0 rgba(0,0,0,.08);
+  }
+  .vbig  .inner{
+    background:linear-gradient(135deg,#3c3a32,#615749);color:#f9f6f2;
+    box-shadow:0 0 24px rgba(60,58,50,.55);
+  }
+
+  .float{
+    position:absolute;transform:translate(-50%,-50%);
+    font-size:15px;font-weight:800;color:#7a6753;
+    pointer-events:none;z-index:6;
+    animation:floatUp .75s ease-out forwards;
+    text-shadow:0 1px 0 rgba(255,255,255,.6);
+  }
+  @keyframes floatUp{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.8)}
+    18%{opacity:1;transform:translate(-50%,-60%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-150%) scale(1)}
+  }
+
+  /* ---------- overlay ---------- */
+  .overlay{
+    position:absolute;inset:0;z-index:10;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(250,248,239,.88);
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+    opacity:0;pointer-events:none;transition:opacity .25s ease;
+  }
+  .overlay.on{opacity:1;pointer-events:auto}
+  .overlay.win{background:rgba(250,246,225,.9)}
+  .ov-card{text-align:center;padding:20px 18px}
+  .ov-title{margin:0 0 6px;font-size:clamp(26px,7.5vw,38px);font-weight:800;letter-spacing:-.5px}
+  .ov-sub{margin:0 0 18px;font-size:14px;color:var(--muted)}
+  .ov-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+  .hint{
+    margin:14px 0 0;text-align:center;font-size:12.5px;color:#a89c92;line-height:1.7;
+  }
+  .hint kbd{
+    font:inherit;font-size:11px;background:#e9e1d7;border-radius:5px;padding:1px 6px;
+    box-shadow:0 1px 0 #d3c8bc;color:#7a6f66;
+  }
+  @media (max-width:380px){
+    .score-box{min-width:72px;padding:6px 9px}
+    .num{font-size:19px}
+    button{padding:9px 13px;font-size:13px}
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <div>
+      <h1>2048</h1>
+      <p class="sub">合并相同数字，凑出 2048</p>
+    </div>
+    <div class="scores">
+      <div class="score-box"><span class="label">得分</span><span class="num" id="score">0</span></div>
+      <div class="score-box"><span class="label">最高</span><span class="num" id="best">0</span></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button id="newBtn">新游戏</button>
+    <button id="undoBtn" class="ghost">↶ 撤销</button>
+  </div>
+
+  <div class="board" id="board">
+    <div class="grid-bg" id="gridBg"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="overlay" id="overlay">
+      <div class="ov-card">
+        <p class="ov-title" id="ovTitle">游戏结束</p>
+        <p class="ov-sub" id="ovSub"></p>
+        <div class="ov-btns">
+          <button id="ovMain">再来一局</button>
+          <button id="ovAlt" class="ghost" hidden>重新开始</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint">
+    <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> 或 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 ·
+    手机滑动 · <kbd>Z</kbd> 撤销
+  </p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var N = 4;
+  var STORE = '2048.hutudan.best';
+
+  var boardEl = document.getElementById('board');
+  var gridEl = document.getElementById('gridBg');
+  var tilesEl = document.getElementById('tiles');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var overlay = document.getElementById('overlay');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovSub = document.getElementById('ovSub');
+  var ovMain = document.getElementById('ovMain');
+  var ovAlt = document.getElementById('ovAlt');
+  var newBtn = document.getElementById('newBtn');
+  var undoBtn = document.getElementById('undoBtn');
+
+  var DIRS = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
+
+  var grid = [];
+  var tiles = new Map();
+  var score = 0;
+  var best = 0;
+  var seq = 0;
+  var won = false;
+  var over = false;
+  var overlayMode = null;
+  var undoStack = [];
+  var cell = 0;
+  var gap = 0;
+
+  /* ---------- geometry ---------- */
+
+  function layout() {
+    var w = boardEl.clientWidth;
+    if (!w) return;
+    gap = Math.max(7, Math.round(w * 0.026));
+    cell = (w - gap * (N + 1)) / N;
+    boardEl.style.setProperty('--gap', gap + 'px');
+    boardEl.style.setProperty('--cell', cell + 'px');
+    tiles.forEach(function (t) {
+      place(t);
+      sizeFont(t);
+    });
+  }
+
+  function tf(r, c) {
+    return 'translate(' + (gap + c * (cell + gap)) + 'px,' + (gap + r * (cell + gap)) + 'px)';
+  }
+
+  function place(t) {
+    if (!t.el) return;
+    t.el.style.transform = tf(t.r, t.c);
+  }
+
+  function fontFor(v) {
+    var digits = String(v).length;
+    var ratio = digits <= 2 ? 0.46 : digits === 3 ? 0.38 : digits === 4 ? 0.3 : 0.235;
+    return Math.round(cell * ratio) + 'px';
+  }
+
+  function sizeFont(t) {
+    if (t.el) t.el.style.fontSize = fontFor(t.value);
+  }
+
+  /* ---------- tiles ---------- */
+
+  function makeTile(t, isNew) {
+    var el = document.createElement('div');
+    el.className = 'tile ' + (t.value <= 2048 ? 'v' + t.value : 'vbig');
+    var inner = document.createElement('div');
+    inner.className = 'inner';
+    inner.textContent = t.value;
+    el.appendChild(inner);
+    el.style.fontSize = fontFor(t.value);
+    el.style.transform = tf(t.r, t.c);
+    if (isNew) el.classList.add('tile-new');
+    tilesEl.appendChild(el);
+    t.el = el;
+    return el;
+  }
+
+  function addTile(value, r, c, isNew) {
+    var t = { id: ++seq, value: value, r: r, c: c, el: null };
+    grid[r][c] = t;
+    tiles.set(t.id, t);
+    makeTile(t, isNew);
+    return t;
+  }
+
+  function emptyCells() {
+    var out = [];
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        if (!grid[r][c]) out.push([r, c]);
+      }
+    }
+    return out;
+  }
+
+  function spawn() {
+    var cells = emptyCells();
+    if (!cells.length) return null;
+    var pick = cells[Math.floor(Math.random() * cells.length)];
+    return addTile(Math.random() < 0.9 ? 2 : 4, pick[0], pick[1], true);
+  }
+
+  /* ---------- state ---------- */
+
+  function updateScore() {
+    scoreEl.textContent = score;
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem(STORE, String(best)); } catch (e) {}
+    }
+    bestEl.textContent = best;
+    undoBtn.disabled = undoStack.length === 0;
+  }
+
+  function newGame() {
+    tilesEl.innerHTML = '';
+    tiles.clear();
+    seq = 0;
+    grid = [];
+    for (var r = 0; r < N; r++) {
+      grid.push(new Array(N).fill(null));
+    }
+    score = 0;
+    won = false;
+    over = false;
+    undoStack = [];
+    hideOverlay();
+    spawn();
+    spawn();
+    updateScore();
+  }
+
+  function snapshot() {
+    return {
+      values: grid.map(function (row) {
+        return row.map(function (t) { return t ? t.value : 0; });
+      }),
+      score: score,
+      won: won
+    };
+  }
+
+  function rebuild(s) {
+    tilesEl.innerHTML = '';
+    tiles.clear();
+    seq = 0;
+    grid = [];
+    for (var r = 0; r < N; r++) {
+      grid.push(new Array(N).fill(null));
+    }
+    for (var rr = 0; rr < N; rr++) {
+      for (var cc = 0; cc < N; cc++) {
+        if (s.values[rr][cc]) addTile(s.values[rr][cc], rr, cc, false);
+      }
+    }
+    score = s.score;
+    won = s.won;
+    over = false;
+    hideOverlay();
+    updateScore();
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    rebuild(undoStack.pop());
+  }
+
+  /* ---------- overlay ---------- */
+
+  function showOverlay(mode) {
+    overlayMode = mode;
+    overlay.classList.toggle('win', mode === 'win');
+    if (mode === 'win') {
+      ovTitle.textContent = '达成 2048！';
+      ovSub.textContent = '当前 ' + score + ' 分，还能继续冲。';
+      ovMain.textContent = '继续挑战';
+      ovAlt.hidden = false;
+      ovAlt.textContent = '重新开始';
+    } else {
+      ovTitle.textContent = '游戏结束';
+      ovSub.textContent = '本局 ' + score + ' 分 · 最高 ' + best + ' 分';
+      ovMain.textContent = '再来一局';
+      ovAlt.hidden = true;
+    }
+    overlay.classList.add('on');
+  }
+
+  function hideOverlay() {
+    overlayMode = null;
+    overlay.classList.remove('on');
+  }
+
+  /* ---------- game logic ---------- */
+
+  function canMove() {
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        var t = grid[r][c];
+        if (!t) return true;
+        if (c + 1 < N && grid[r][c + 1] && grid[r][c + 1].value === t.value) return true;
+        if (r + 1 < N && grid[r + 1][c] && grid[r + 1][c].value === t.value) return true;
+      }
+    }
+    return false;
+  }
+
+  function floatScore(value, r, c) {
+    var el = document.createElement('div');
+    el.className = 'float';
+    el.textContent = '+' + value;
+    el.style.left = (gap + c * (cell + gap) + cell / 2) + 'px';
+    el.style.top = (gap + r * (cell + gap) + cell / 2) + 'px';
+    boardEl.appendChild(el);
+    setTimeout(function () { el.remove(); }, 760);
+  }
+
+  function move(dir) {
+    if (over || overlayMode === 'win') return;
+
+    var vec = DIRS[dir];
+    var dr = vec[0], dc = vec[1];
+    var before = snapshot();
+    var rows = dr > 0 ? [3, 2, 1, 0] : [0, 1, 2, 3];
+    var cols = dc > 0 ? [3, 2, 1, 0] : [0, 1, 2, 3];
+    var merged = new Set();
+    var moved = false;
+    var gain = 0;
+
+    for (var i = 0; i < rows.length; i++) {
+      for (var j = 0; j < cols.length; j++) {
+        var r = rows[i], c = cols[j];
+        var t = grid[r][c];
+        if (!t || merged.has(t.id)) continue;
+
+        var nr = r, nc = c;
+        while (true) {
+          var ar = nr + dr, ac = nc + dc;
+          if (ar < 0 || ar >= N || ac < 0 || ac >= N || grid[ar][ac]) break;
+          nr = ar; nc = ac;
+        }
+
+        var mr = nr + dr, mc = nc + dc;
+        var other = (mr >= 0 && mr < N && mc >= 0 && mc < N) ? grid[mr][mc] : null;
+
+        if (other && other.value === t.value && !merged.has(other.id)) {
+          /* merge t into other's cell */
+          grid[r][c] = null;
+          merged.add(t.id);
+          merged.add(other.id);
+
+          t.r = mr; t.c = mc;
+          other.r = mr; other.c = mc;
+          place(t);
+          place(other);
+
+          var aEl = t.el, bEl = other.el;
+          tiles.delete(t.id);
+          tiles.delete(other.id);
+
+          var mt = { id: ++seq, value: t.value * 2, r: mr, c: mc, el: null };
+          grid[mr][mc] = mt;
+          tiles.set(mt.id, mt);
+          merged.add(mt.id);
+
+          var el = makeTile(mt, false);
+          el.classList.add('tile-merged');
+
+          gain += mt.value;
+          moved = true;
+          floatScore(mt.value, mr, mc);
+
+          setTimeout(function (a, b) {
+            a.remove();
+            b.remove();
+          }, 130, aEl, bEl);
+
+        } else if (nr !== r || nc !== c) {
+          grid[r][c] = null;
+          grid[nr][nc] = t;
+          t.r = nr; t.c = nc;
+          place(t);
+          moved = true;
+        }
+      }
+    }
+
+    if (!moved) return;
+
+    undoStack.push(before);
+    if (undoStack.length > 40) undoStack.shift();
+
+    score += gain;
+    spawn();
+    updateScore();
+
+    if (gain > 0) {
+      scoreEl.classList.add('bump');
+      setTimeout(function () { scoreEl.classList.remove('bump'); }, 230);
+    }
+
+    var top = 0;
+    tiles.forEach(function (t) { if (t.value > top) top = t.value; });
+
+    if (top >= 2048 && !won) {
+      won = true;
+      showOverlay('win');
+    } else if (!canMove()) {
+      over = true;
+      showOverlay('over');
+    }
+  }
+
+  /* ---------- input ---------- */
+
+  var KEYMAP = {
+    arrowup: 'up', arrowdown: 'down', arrowleft: 'left', arrowright: 'right',
+    w: 'up', s: 'down', a: 'left', d: 'right'
+  };
+
+  window.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = (e.key || '').toLowerCase();
+    if (KEYMAP[k]) {
+      e.preventDefault();
+      move(KEYMAP[k]);
+    } else if (k === 'z' || k === 'u') {
+      e.preventDefault();
+      undo();
+    } else if (k === 'r') {
+      e.preventDefault();
+      newGame();
+    }
+  }, { passive: false });
+
+  var startX = 0, startY = 0, tracking = false;
+
+  boardEl.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('button')) return;
+    tracking = true;
+    startX = e.clientX;
+    startY = e.clientY;
+  });
+
+  boardEl.addEventListener('pointerup', function (e) {
+    if (!tracking) return;
+    tracking = false;
+    var dx = e.clientX - startX;
+    var dy = e.clientY - startY;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 22) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      move(dx > 0 ? 'right' : 'left');
+    } else {
+      move(dy > 0 ? 'down' : 'up');
+    }
+  });
+
+  boardEl.addEventListener('pointercancel', function () { tracking = false; });
+
+  ovMain.addEventListener('click', function () {
+    if (overlayMode === 'win') {
+      hideOverlay();
+    } else {
+      newGame();
+    }
+  });
+
+  ovAlt.addEventListener('click', function () { newGame(); });
+  newBtn.addEventListener('click', function () { newGame(); });
+  undoBtn.addEventListener('click', undo);
+
+  /* ---------- boot ---------- */
+
+  for (var i = 0; i < N * N; i++) {
+    var d = document.createElement('div');
+    d.className = 'cell';
+    gridEl.appendChild(d);
+  }
+
+  try { best = Number(localStorage.getItem(STORE)) || 0; } catch (e) { best = 0; }
+  bestEl.textContent = best;
+
+  layout();
+  newGame();
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', function () { setTimeout(layout, 120); });
+})();
+</script>
+</body>
+</html>
