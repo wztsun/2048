@@ -319,7 +319,7 @@
   }
 
   function newGame() {
-    tilesEl.innerHTML = '';
+    tilesEl.replaceChildren();
     tiles.clear();
     seq = 0;
     grid = [];
@@ -347,7 +347,7 @@
   }
 
   function rebuild(s) {
-    tilesEl.innerHTML = '';
+    tilesEl.replaceChildren();
     tiles.clear();
     seq = 0;
     grid = [];
